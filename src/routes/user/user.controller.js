@@ -36,7 +36,12 @@ const mapProvider = (provider) => {
   const normalizedProvider = provider.trim().toLowerCase();
 
   if (normalizedProvider === 'google') return AUTH_PROVIDER.GOOGLE;
-  if (normalizedProvider === 'microsoft' || normalizedProvider === 'microsoft-entra-id') return AUTH_PROVIDER.MICROSOFT;
+  if (
+    normalizedProvider === 'microsoft' ||
+    normalizedProvider === 'azure-ad'
+  ) {
+    return AUTH_PROVIDER.MICROSOFT;
+  }
 
   throw new ApiError(400, 'Unsupported OAuth provider');
 };
