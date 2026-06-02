@@ -134,15 +134,18 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
+
     if (refreshToken) {
       await revokeRefreshToken(refreshToken);
-    } else {
-      // fallback: revoke all tokens for the authenticated user
+    } else if (req.user && req.user.id) {
       await revokeAllRefreshTokensForUser(req.user.id);
+    } else {
+      throw new ApiError(400, 'Refresh token is required');
     }
+
     return res.status(200).json(new ApiResponse(200, 'Logout successful', null));
   } catch (err) {
-    return res.status(500).json(new ApiResponse(500, 'Internal Server Error', null));
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
   }
 };
 
