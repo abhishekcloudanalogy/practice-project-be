@@ -1,26 +1,25 @@
-/*
-  Warnings:
+-- CreateTable
+CREATE TABLE "Contact" (
+    "id" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "userId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "email" TEXT NOT NULL,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT,
+    "primaryContact" TEXT NOT NULL,
+    "secondaryContact" TEXT,
 
-  - You are about to drop the column `phone` on the `Contact` table. All the data in the column will be lost.
-  - Added the required column `email` to the `Contact` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `firstName` to the `Contact` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `primaryContact` to the `Contact` table without a default value. This is not possible if the table is not empty.
-
-*/
--- DropForeignKey
-ALTER TABLE "Contact" DROP CONSTRAINT "Contact_userId_fkey";
-
--- AlterTable
-ALTER TABLE "Contact" DROP COLUMN "phone",
-ADD COLUMN     "email" TEXT NOT NULL,
-ADD COLUMN     "firstName" TEXT NOT NULL,
-ADD COLUMN     "lastName" TEXT,
-ADD COLUMN     "primaryContact" TEXT NOT NULL,
-ADD COLUMN     "secondaryContact" TEXT,
-ALTER COLUMN "userId" DROP NOT NULL;
+    CONSTRAINT "Contact_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateIndex
 CREATE INDEX "Contact_email_idx" ON "Contact"("email");
+
+-- CreateIndex
+CREATE INDEX "Contact_userId_idx" ON "Contact"("userId");
 
 -- CreateIndex
 CREATE INDEX "Contact_createdAt_idx" ON "Contact"("createdAt");

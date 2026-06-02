@@ -7,12 +7,13 @@ module.exports = {
   databaseUrl: process.env.DATABASE_URL || '',
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || '',
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1d',
+  jwtRefreshExpiresInDays: Number(process.env.JWT_REFRESH_EXPIRES_IN_DAYS) || 30,
   internalAuthSecret: process.env.INTERNAL_AUTH_SECRET || '',
   smtp: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT),
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
-    to:process.env.CONTACT_RECEIVER,
+    to: process.env.CONTACT_RECEIVER,
   },
 };

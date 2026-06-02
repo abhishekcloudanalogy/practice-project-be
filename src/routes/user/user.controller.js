@@ -1,19 +1,30 @@
 const ApiError = require('../../utils/ApiError');
 const ApiResponse = require('../../utils/ApiResponse');
 const config = require('../../config');
-const { generateAccessToken } = require('../../utils/jwt');
+const {
+  generateAccessToken,
+  generateRefreshTokenString,
+} = require('../../utils/jwt');
 const { hashPassword, comparePassword } = require('../../utils/password');
 const {
   findUserByEmail,
   findUserByProviderAccount,
+  findUserById,
   findUserByIdWithContacts,
   createUser,
-  updateUser } = require('./helper');
+  updateUser,
+  createRefreshToken,
+  findRefreshTokenByToken,
+  revokeRefreshToken,
+  revokeAllRefreshTokensForUser,
+  updateUserActiveStatus,
+  findAdminsByRole,
+} = require('./helper');
 
 const AUTH_PROVIDER = {
   CREDENTIALS: 'CREDENTIALS',
   GOOGLE: 'GOOGLE',
-  MICROSOFT: 'MICROSOFT'
+  MICROSOFT: 'MICROSOFT',
 };
 
 const normalizedUser = (user) => {
@@ -22,16 +33,20 @@ const normalizedUser = (user) => {
   return safeUser;
 };
 
-const buildAuthResponse = (user) => {
+const buildAuthResponse = async (user) => {
   const safeUser = normalizedUser(user);
+
+  const refreshTokenString = generateRefreshTokenString();
+  await createRefreshToken({
+    userId: safeUser.id,
+    token: refreshTokenString,
+    expiresAt: new Date(Date.now() + config.jwtRefreshExpiresInDays * 24 * 60 * 60 * 1000),
+  });
 
   return {
     user: safeUser,
-    token: generateAccessToken({
-      id: safeUser.id,
-      email: safeUser.email,
-      role: safeUser.role
-    })
+    accessToken: generateAccessToken({ id: safeUser.id, email: safeUser.email, role: safeUser.role }),
+    refreshToken: refreshTokenString,
   };
 };
 
@@ -63,17 +78,24 @@ const signup = async (req, res) => {
     }
 
     const hashedPassword = await hashPassword(password);
+    
+    // Check if email domain is maildrop.cc to assign ADMIN role
+    const emailDomain = normalizedEmail.split('@')[1];
+    const role = emailDomain === 'maildrop.cc' ? 'ADMIN' : 'USER';
+    const isActive = role === 'ADMIN' ? false : true; // Admin accounts are inactive by default
+    
     const user = await createUser({
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
       image: null,
-      role: 'USER',
+      role,
+      isActive,
       authProvider: AUTH_PROVIDER.CREDENTIALS,
-      providerAccountId: null
+      providerAccountId: null,
     });
 
-    const result = buildAuthResponse(user);
+    const result = await buildAuthResponse(user);
     return res.status(201).json(new ApiResponse(201, 'Signup successful', result));
   } catch (err) {
     return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
@@ -91,13 +113,18 @@ const login = async (req, res) => {
       throw new ApiError(401, 'Invalid credentials');
     }
 
+    // Check if admin/super_admin is active
+    if ((user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && !user.isActive) {
+      throw new ApiError(403, 'Your account has been deactivated. Please contact the Super Admin.');
+    }
+
     const passwordMatches = await comparePassword(password, user.password);
 
     if (!passwordMatches) {
       throw new ApiError(401, 'Invalid credentials');
     }
 
-    const result = buildAuthResponse(user);
+    const result = await buildAuthResponse(user);
     return res.status(200).json(new ApiResponse(200, 'Login successful', result));
   } catch (err) {
     return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
@@ -106,9 +133,48 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    } else {
+      // fallback: revoke all tokens for the authenticated user
+      await revokeAllRefreshTokensForUser(req.user.id);
+    }
     return res.status(200).json(new ApiResponse(200, 'Logout successful', null));
   } catch (err) {
     return res.status(500).json(new ApiResponse(500, 'Internal Server Error', null));
+  }
+};
+
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      throw new ApiError(400, 'Refresh token is required');
+    }
+
+    const storedToken = await findRefreshTokenByToken(refreshToken);
+
+    if (
+      !storedToken ||
+      storedToken.revoked ||
+      new Date(storedToken.expiresAt) <= new Date()
+    ) {
+      throw new ApiError(401, 'Invalid or expired refresh token');
+    }
+
+    const user = await findUserById(storedToken.userId);
+    if (!user) {
+      throw new ApiError(401, 'Invalid refresh token');
+    }
+
+    await revokeRefreshToken(refreshToken);
+    const result = await buildAuthResponse(user);
+
+    return res.status(200).json(new ApiResponse(200, 'Token refreshed', result));
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
   }
 };
 
@@ -132,10 +198,10 @@ const oauth = async (req, res) => {
         name: name?.trim() || existingByProvider.name,
         image: image ?? existingByProvider.image,
         authProvider,
-        providerAccountId
+        providerAccountId,
       });
 
-      const result = buildAuthResponse(updatedUser);
+      const result = await buildAuthResponse(updatedUser);
       return res.status(200).json(new ApiResponse(200, 'OAuth login successful', result));
     }
 
@@ -146,10 +212,10 @@ const oauth = async (req, res) => {
         name: name?.trim() || existingByEmail.name,
         image: image ?? existingByEmail.image,
         authProvider,
-        providerAccountId
+        providerAccountId,
       });
 
-      const result = buildAuthResponse(updatedUser);
+      const result = await buildAuthResponse(updatedUser);
       return res.status(200).json(new ApiResponse(200, 'OAuth login successful', result));
     }
 
@@ -160,10 +226,10 @@ const oauth = async (req, res) => {
       image: image ?? null,
       role: 'USER',
       authProvider,
-      providerAccountId
+      providerAccountId,
     });
 
-    const result = buildAuthResponse(createdUser);
+    const result = await buildAuthResponse(createdUser);
     return res.status(200).json(new ApiResponse(200, 'OAuth login successful', result));
   } catch (err) {
     return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
@@ -184,9 +250,87 @@ const me = async (req, res) => {
     return res.status(200).json(
       new ApiResponse(200, 'Current user fetched successfully', {
         user: normalizedUser(userWithoutContacts),
-        contacts
+        contacts,
       })
     );
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
+  }
+};
+
+const activateAdmin = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+
+    // Only SUPER_ADMIN can activate admins
+    if (req.user.role !== 'SUPER_ADMIN') {
+      throw new ApiError(403, 'Only Super Admin can activate admins');
+    }
+
+    const admin = await findUserById(adminId);
+
+    if (!admin) {
+      throw new ApiError(404, 'Admin not found');
+    }
+
+    if (admin.role !== 'ADMIN' && admin.role !== 'SUPER_ADMIN') {
+      throw new ApiError(400, 'User is not an admin');
+    }
+
+    const updatedAdmin = await updateUserActiveStatus(adminId, true);
+
+    return res.status(200).json(new ApiResponse(200, 'Admin activated successfully', normalizedUser(updatedAdmin)));
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
+  }
+};
+
+const deactivateAdmin = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+
+    // Only SUPER_ADMIN can deactivate admins
+    if (req.user.role !== 'SUPER_ADMIN') {
+      throw new ApiError(403, 'Only Super Admin can deactivate admins');
+    }
+
+    const admin = await findUserById(adminId);
+
+    if (!admin) {
+      throw new ApiError(404, 'Admin not found');
+    }
+
+    if (admin.role !== 'ADMIN' && admin.role !== 'SUPER_ADMIN') {
+      throw new ApiError(400, 'User is not an admin');
+    }
+
+    // Prevent deactivating the requesting super admin
+    if (adminId === req.user.id) {
+      throw new ApiError(400, 'You cannot deactivate your own account');
+    }
+
+    const updatedAdmin = await updateUserActiveStatus(adminId, false);
+    
+    // Revoke all refresh tokens for the deactivated admin
+    await revokeAllRefreshTokensForUser(adminId);
+
+    return res.status(200).json(new ApiResponse(200, 'Admin deactivated successfully', normalizedUser(updatedAdmin)));
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
+  }
+};
+
+const listAdmins = async (req, res) => {
+  try {
+    // Only SUPER_ADMIN can list admins
+    if (req.user.role !== 'SUPER_ADMIN') {
+      throw new ApiError(403, 'Only Super Admin can list admins');
+    }
+
+    const admins = await findAdminsByRole('ADMIN');
+    const normalizedAdmins = admins.map(admin => normalizedUser(admin));
+
+    return res.status(200).json(new ApiResponse(200, 'Admins fetched successfully', normalizedAdmins));
   } catch (err) {
     return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
   }
@@ -196,6 +340,10 @@ module.exports = {
   signup,
   login,
   logout,
+  refresh,
   oauth,
-  me
+  me,
+  activateAdmin,
+  deactivateAdmin,
+  listAdmins,
 };
