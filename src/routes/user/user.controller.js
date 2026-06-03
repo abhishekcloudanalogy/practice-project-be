@@ -14,11 +14,12 @@ const {
   createUser,
   updateUser,
   createRefreshToken,
-  findRefreshTokenByToken,
+  findActiveRefreshTokenByUserId,
   revokeRefreshToken,
   revokeAllRefreshTokensForUser,
   updateUserActiveStatus,
   findAdminsByRole,
+  findAllUsers,
 } = require('./helper');
 
 const AUTH_PROVIDER = {
@@ -46,7 +47,6 @@ const buildAuthResponse = async (user) => {
   return {
     user: safeUser,
     accessToken: generateAccessToken({ id: safeUser.id, email: safeUser.email, role: safeUser.role }),
-    refreshToken: refreshTokenString,
   };
 };
 
@@ -133,15 +133,11 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
-
-    if (refreshToken) {
-      await revokeRefreshToken(refreshToken);
-    } else if (req.user && req.user.id) {
-      await revokeAllRefreshTokensForUser(req.user.id);
-    } else {
-      throw new ApiError(400, 'Refresh token is required');
+    if (!req.user || !req.user.id) {
+      throw new ApiError(401, 'Unauthorized');
     }
+
+    await revokeAllRefreshTokensForUser(req.user.id);
 
     return res.status(200).json(new ApiResponse(200, 'Logout successful', null));
   } catch (err) {
@@ -151,28 +147,30 @@ const logout = async (req, res) => {
 
 const refresh = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const internalSecret = req.headers['x-internal-secret'];
 
-    if (!refreshToken) {
-      throw new ApiError(400, 'Refresh token is required');
+    if (!config.internalAuthSecret || internalSecret !== config.internalAuthSecret) {
+      throw new ApiError(401, 'Unauthorized');
     }
 
-    const storedToken = await findRefreshTokenByToken(refreshToken);
+    const { userId } = req.body;
 
-    if (
-      !storedToken ||
-      storedToken.revoked ||
-      new Date(storedToken.expiresAt) <= new Date()
-    ) {
-      throw new ApiError(401, 'Invalid or expired refresh token');
+    if (!userId) {
+      throw new ApiError(400, 'userId is required');
     }
 
-    const user = await findUserById(storedToken.userId);
+    const activeToken = await findActiveRefreshTokenByUserId(userId);
+
+    if (!activeToken) {
+      throw new ApiError(401, 'No active session found');
+    }
+
+    const user = await findUserById(userId);
     if (!user) {
-      throw new ApiError(401, 'Invalid refresh token');
+      throw new ApiError(401, 'User not found');
     }
 
-    await revokeRefreshToken(refreshToken);
+    await revokeRefreshToken(activeToken.token);
     const result = await buildAuthResponse(user);
 
     return res.status(200).json(new ApiResponse(200, 'Token refreshed', result));
@@ -325,7 +323,6 @@ const deactivateAdmin = async (req, res) => {
 
 const listAdmins = async (req, res) => {
   try {
-    // Only SUPER_ADMIN can list admins
     if (req.user.role !== 'SUPER_ADMIN') {
       throw new ApiError(403, 'Only Super Admin can list admins');
     }
@@ -334,6 +331,41 @@ const listAdmins = async (req, res) => {
     const normalizedAdmins = admins.map(admin => normalizedUser(admin));
 
     return res.status(200).json(new ApiResponse(200, 'Admins fetched successfully', normalizedAdmins));
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
+  }
+};
+
+const listUsers = async (req, res) => {
+  try {
+    const isSuperAdmin = req.user.role === 'SUPER_ADMIN';
+    const users = await findAllUsers(isSuperAdmin);
+    return res.status(200).json(new ApiResponse(200, 'Users fetched successfully', users.map(normalizedUser)));
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
+  }
+};
+
+const toggleUserActive = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isActive } = req.body;
+
+    if (typeof isActive !== 'boolean') {
+      throw new ApiError(400, 'isActive must be a boolean');
+    }
+
+    // Prevent self-deactivation
+    if (userId === req.user.id && !isActive) {
+      throw new ApiError(400, 'You cannot deactivate your own account');
+    }
+
+    const updated = await updateUserActiveStatus(userId, isActive);
+    if (!updated) throw new ApiError(404, 'User not found');
+
+    if (!isActive) await revokeAllRefreshTokensForUser(userId);
+
+    return res.status(200).json(new ApiResponse(200, `User ${isActive ? 'activated' : 'deactivated'} successfully`, normalizedUser(updated)));
   } catch (err) {
     return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
   }
@@ -349,4 +381,6 @@ module.exports = {
   activateAdmin,
   deactivateAdmin,
   listAdmins,
+  listUsers,
+  toggleUserActive,
 };

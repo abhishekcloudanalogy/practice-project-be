@@ -88,6 +88,13 @@ const findRefreshTokenByToken = (token) => {
   });
 };
 
+const findActiveRefreshTokenByUserId = (userId) => {
+  return prisma.refreshToken.findFirst({
+    where: { userId, revoked: false, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
 const revokeRefreshToken = (token) => {
   return prisma.refreshToken.updateMany({
     where: { token, revoked: false },
@@ -118,6 +125,14 @@ const findAdminsByRole = (role) => {
   });
 };
 
+const findAllUsers = (includeSuperAdmin = false) => {
+  return prisma.user.findMany({
+    where: includeSuperAdmin ? {} : { role: { in: ['USER', 'ADMIN'] } },
+    select: USER_SELECT,
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
 module.exports = {
   USER_SELECT,
   findUserByEmail,
@@ -128,8 +143,10 @@ module.exports = {
   updateUser,
   createRefreshToken,
   findRefreshTokenByToken,
+  findActiveRefreshTokenByUserId,
   revokeRefreshToken,
   revokeAllRefreshTokensForUser,
   updateUserActiveStatus,
   findAdminsByRole,
+  findAllUsers,
 };
