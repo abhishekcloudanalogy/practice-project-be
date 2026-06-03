@@ -9,6 +9,7 @@ datasource db {
 enum UserRole {
   USER
   ADMIN
+  SUPER_ADMIN
 }
 
 enum AuthProvider {
@@ -24,14 +25,27 @@ model User {
   password          String?
   image             String?
   role              UserRole     @default(USER)
+  isActive          Boolean      @default(true)
   authProvider      AuthProvider @default(CREDENTIALS)
   providerAccountId String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  contacts Contact[]
+  contacts        Contact[]
+  refreshTokens   RefreshToken[]
 
   @@unique([authProvider, providerAccountId])
+}
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  revoked    Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Contact {

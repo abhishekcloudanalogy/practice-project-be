@@ -24,6 +24,14 @@ const protect = async (req, res, next) => {
   }
 };
 
+const authorize = (...allowedRoles) => (req, res, next) => {
+  if (!req.user || !allowedRoles.includes(req.user.role)) {
+    return next(new ApiError(403, 'Forbidden'));
+  }
+  return next();
+};
+
 module.exports = {
-  protect
+  protect,
+  authorize,
 };

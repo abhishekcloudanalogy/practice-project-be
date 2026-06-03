@@ -8,16 +8,17 @@ const USER_SELECT = {
   password: true,
   image: true,
   role: true,
+  isActive: true,
   authProvider: true,
   providerAccountId: true,
   createdAt: true,
-  updatedAt: true
+  updatedAt: true,
 };
 
 const findUserByEmail = (email) => {
   return prisma.user.findUnique({
     where: { email },
-    select: USER_SELECT
+    select: USER_SELECT,
   });
 };
 
@@ -25,16 +26,16 @@ const findUserByProviderAccount = (authProvider, providerAccountId) => {
   return prisma.user.findFirst({
     where: {
       authProvider,
-      providerAccountId
+      providerAccountId,
     },
-    select: USER_SELECT
+    select: USER_SELECT,
   });
 };
 
 const findUserById = (id) => {
   return prisma.user.findUnique({
     where: { id },
-    select: USER_SELECT
+    select: USER_SELECT,
   });
 };
 
@@ -45,18 +46,18 @@ const findUserByIdWithContacts = (id) => {
       ...USER_SELECT,
       contacts: {
         orderBy: {
-          createdAt: 'desc'
+          createdAt: 'desc',
         },
-        select: CONTACT_SELECT
-      }
-    }
+        select: CONTACT_SELECT,
+      },
+    },
   });
 };
 
 const createUser = (data) => {
   return prisma.user.create({
     data,
-    select: USER_SELECT
+    select: USER_SELECT,
   });
 };
 
@@ -64,7 +65,71 @@ const updateUser = (id, data) => {
   return prisma.user.update({
     where: { id },
     data,
-    select: USER_SELECT
+    select: USER_SELECT,
+  });
+};
+
+const createRefreshToken = ({ userId, token, expiresAt }) => {
+  return prisma.refreshToken.create({
+    data: {
+      user: { connect: { id: userId } },
+      token,
+      expiresAt,
+    },
+  });
+};
+
+const findRefreshTokenByToken = (token) => {
+  return prisma.refreshToken.findUnique({
+    where: { token },
+    include: {
+      user: true,
+    },
+  });
+};
+
+const findActiveRefreshTokenByUserId = (userId) => {
+  return prisma.refreshToken.findFirst({
+    where: { userId, revoked: false, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
+const revokeRefreshToken = (token) => {
+  return prisma.refreshToken.updateMany({
+    where: { token, revoked: false },
+    data: { revoked: true },
+  });
+};
+
+const revokeAllRefreshTokensForUser = (userId) => {
+  return prisma.refreshToken.updateMany({
+    where: { userId, revoked: false },
+    data: { revoked: true },
+  });
+};
+
+const updateUserActiveStatus = (userId, isActive) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { isActive },
+    select: USER_SELECT,
+  });
+};
+
+const findAdminsByRole = (role) => {
+  return prisma.user.findMany({
+    where: { role },
+    select: USER_SELECT,
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
+const findAllUsers = (includeSuperAdmin = false) => {
+  return prisma.user.findMany({
+    where: includeSuperAdmin ? {} : { role: { in: ['USER', 'ADMIN'] } },
+    select: USER_SELECT,
+    orderBy: { createdAt: 'desc' },
   });
 };
 
@@ -75,5 +140,13 @@ module.exports = {
   findUserById,
   findUserByIdWithContacts,
   createUser,
-  updateUser
+  updateUser,
+  createRefreshToken,
+  findRefreshTokenByToken,
+  findActiveRefreshTokenByUserId,
+  revokeRefreshToken,
+  revokeAllRefreshTokensForUser,
+  updateUserActiveStatus,
+  findAdminsByRole,
+  findAllUsers,
 };

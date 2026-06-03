@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-
 const config = require('./config');
 const routes = require('./routes');
 const ApiError = require('./utils/ApiError');
