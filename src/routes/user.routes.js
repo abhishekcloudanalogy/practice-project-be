@@ -9,6 +9,7 @@ router.post('/logout', protect, userController.logout);
 router.post('/refresh', userController.refresh);
 router.post('/oauth', validateOAuth, userController.oauth);
 router.get('/me', protect, userController.me);
+router.get('/me/contacts', protect, userController.getMyContacts);
 
 // Admin activation/deactivation routes (only SUPER_ADMIN)
 router.post('/admins/:adminId/activate', protect, authorize('SUPER_ADMIN'), userController.activateAdmin);

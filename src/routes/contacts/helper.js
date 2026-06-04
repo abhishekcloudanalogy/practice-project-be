@@ -7,10 +7,19 @@ const USER_CONTACT_SELECT = {
   email: true,
   primaryContact: true,
   secondaryContact: true,
+  company: true,
+  notes: true,
   contactType: true,
   userId: true,
   createdAt: true,
   updatedAt: true,
+};
+
+const USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  image: true,
 };
 
 const createContact = (userId, data) => {
@@ -29,7 +38,16 @@ const findContactsByUserId = (userId) => {
     orderBy: {
       createdAt: 'desc',
     },
-    select: USER_CONTACT_SELECT,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+        },
+      },
+    },
   });
 };
 

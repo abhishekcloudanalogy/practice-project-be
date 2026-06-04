@@ -11,6 +11,7 @@ const {
   findUserByProviderAccount,
   findUserById,
   findUserByIdWithContacts,
+  findUserContactsByUserId,
   createUser,
   updateUser,
   createRefreshToken,
@@ -262,6 +263,21 @@ const me = async (req, res) => {
   }
 };
 
+const getMyContacts = async (req, res) => {
+  try {
+    const userId = req.user && req.user.id;
+    const contacts = await findUserContactsByUserId(userId);
+
+    return res.status(200).json(
+      new ApiResponse(200, 'User contacts fetched successfully', {
+        contacts,
+      })
+    );
+  } catch (err) {
+    return res.status(err.status || 500).json(new ApiResponse(err.status || 500, err.message || 'Internal Server Error', null));
+  }
+};
+
 const activateAdmin = async (req, res) => {
   try {
     const { adminId } = req.params;
@@ -381,6 +397,7 @@ module.exports = {
   refresh,
   oauth,
   me,
+  getMyContacts,
   activateAdmin,
   deactivateAdmin,
   listAdmins,

@@ -88,6 +88,8 @@ model UserContact {
   email            String
   primaryContact   String
   secondaryContact String?
+  company          String?
+  notes            String?
   contactType      ContactType @default(PRIMARY)
   user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId           String
@@ -97,4 +99,6 @@ model UserContact {
   @@index([userId])
   @@index([email])
   @@index([contactType])
+  @@unique([userId, email], name: "user_contact_user_email_unique")
+  @@unique([userId, primaryContact], name: "user_contact_user_primary_contact_unique")
 }
