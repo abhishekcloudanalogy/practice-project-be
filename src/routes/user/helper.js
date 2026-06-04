@@ -1,5 +1,5 @@
 const prisma = require('../../config/prisma');
-const { CONTACT_SELECT } = require('../contact/helper');
+const { CONTACT_SELECT } = require('../contactus/helper');
 
 const USER_SELECT = {
   id: true,

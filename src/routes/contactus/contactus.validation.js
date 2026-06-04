@@ -1,7 +1,7 @@
 const { z } = require('zod');
 const ApiError = require('../../utils/ApiError');
 
-const contactSchema = z.object({
+const contactusSchema = z.object({
   firstName: z
     .string()
     .trim()
@@ -68,7 +68,7 @@ const validate = (schema) => {
 };
 
 module.exports = {
-  contactSchema,
+  contactusSchema,
   validate,
-  validateContact: validate(contactSchema),
+  validateContactus: validate(contactusSchema),
 };

@@ -46,7 +46,7 @@ const buildAuthResponse = async (user) => {
 
   return {
     user: safeUser,
-    accessToken: generateAccessToken({ id: safeUser.id, email: safeUser.email, role: safeUser.role }),
+    token : generateAccessToken({ id: safeUser.id, email: safeUser.email, role: safeUser.role }),
   };
 };
 
@@ -78,12 +78,12 @@ const signup = async (req, res) => {
     }
 
     const hashedPassword = await hashPassword(password);
-    
+
     // Check if email domain is maildrop.cc to assign ADMIN role
     const emailDomain = normalizedEmail.split('@')[1];
     const role = emailDomain === 'maildrop.cc' ? 'ADMIN' : 'USER';
     const isActive = role === 'ADMIN' ? false : true; // Admin accounts are inactive by default
-    
+
     const user = await createUser({
       name: name.trim(),
       email: normalizedEmail,
@@ -198,6 +198,7 @@ const oauth = async (req, res) => {
         email: normalizedEmail,
         name: name?.trim() || existingByProvider.name,
         image: image ?? existingByProvider.image,
+        isActive: true,
         authProvider,
         providerAccountId,
       });
@@ -212,6 +213,7 @@ const oauth = async (req, res) => {
       const updatedUser = await updateUser(existingByEmail.id, {
         name: name?.trim() || existingByEmail.name,
         image: image ?? existingByEmail.image,
+        isActive: true,
         authProvider,
         providerAccountId,
       });
@@ -226,6 +228,7 @@ const oauth = async (req, res) => {
       password: null,
       image: image ?? null,
       role: 'USER',
+      isActive: true,
       authProvider,
       providerAccountId,
     });
@@ -311,7 +314,7 @@ const deactivateAdmin = async (req, res) => {
     }
 
     const updatedAdmin = await updateUserActiveStatus(adminId, false);
-    
+
     // Revoke all refresh tokens for the deactivated admin
     await revokeAllRefreshTokensForUser(adminId);
 
