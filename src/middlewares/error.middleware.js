@@ -1,5 +1,6 @@
 const errorHandler = (err, req, res, next) => {
-  const statusCode = err.statusCode || err.status || 500;
+  console.error(err);
+  let statusCode = err.statusCode || err.status || 500;
   let message = err.message || 'Internal Server Error';
 
   if (err.name === 'TokenExpiredError') {
@@ -11,7 +12,17 @@ const errorHandler = (err, req, res, next) => {
   }
 
   if (err.code === 'P2002') {
-    message = 'Resource already exists';
+    statusCode = 409;
+
+    const fields = Array.isArray(err.meta?.target) ? err.meta.target : [];
+
+    if (fields.includes('email')) {
+      message = 'Contact email already exists';
+    } else if (fields.includes('primaryContact')) {
+      message = 'Primary contact already exists';
+    } else {
+      message = 'Resource already exists';
+    }
   }
 
   return res.status(statusCode).json({

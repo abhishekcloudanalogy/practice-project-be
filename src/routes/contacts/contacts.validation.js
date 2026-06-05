@@ -1,7 +1,11 @@
 const { z } = require('zod');
 const ApiError = require('../../utils/ApiError');
 
-const contactSchema = z.object({
+const contactTypeSchema = z.enum(['PRIMARY', 'SECONDARY'], {
+  message: 'Contact type must be PRIMARY or SECONDARY',
+});
+
+const contactsSchema = z.object({
   firstName: z
     .string()
     .trim()
@@ -34,18 +38,13 @@ const contactSchema = z.object({
     .optional()
     .nullable(),
 
-  subject: z
-    .string()
-    .trim()
-    .min(3, 'Subject must be at least 3 characters long')
-    .max(100, 'Subject must be at most 100 characters long'),
-
-  message: z
-    .string()
-    .trim()
-    .min(10, 'Message must be at least 10 characters long')
-    .max(1000, 'Message must be at most 1000 characters long'),
+  contactType: contactTypeSchema.default('PRIMARY'),
 });
+
+const updateContactsSchema = contactsSchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  'At least one field is required'
+);
 
 const validate = (schema) => {
   return (req, res, next) => {
@@ -68,7 +67,9 @@ const validate = (schema) => {
 };
 
 module.exports = {
-  contactSchema,
+  contactsSchema,
+  updateContactsSchema,
   validate,
-  validateContact: validate(contactSchema),
+  validateCreateContact: validate(contactsSchema),
+  validateUpdateContact: validate(updateContactsSchema),
 };
