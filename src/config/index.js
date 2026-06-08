@@ -16,4 +16,7 @@ module.exports = {
     pass: process.env.SMTP_PASS,
     to: process.env.CONTACT_RECEIVER,
   },
+  GROQ_API_KEY: process.env.GROQ_API_KEY || '',
+  GROQ_MODEL: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+  GROQ_MAX_TOKENS: Number(process.env.GROQ_MAX_TOKENS) || 2000,
 };
