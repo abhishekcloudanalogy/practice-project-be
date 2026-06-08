@@ -11,7 +11,7 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({
-	origin: config.clientUrl || true,
+	origin: config.clientUrl && config.clientUrl.trim() !== '' ? config.clientUrl : false,
 	credentials: true
 }));
 app.use(express.json());
