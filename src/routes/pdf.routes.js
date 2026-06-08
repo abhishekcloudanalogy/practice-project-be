@@ -5,7 +5,8 @@ const { protect } = require('../middlewares/auth.middleware');
 const {
   uploadPdf,
   validateUploadedPdf,
-  validateExtractedData,
+  validateTablePayload,
+  validateRowPayload,
 } = require('./pdf/pdf.validation');
 
 router.use(protect);
@@ -15,13 +16,33 @@ router
   .get(pdfController.getUserPdfs);
 
 router
-  .route('/upload')
-  .post(uploadPdf, validateUploadedPdf, pdfController.uploadPdf);
+  .route('/merged-data')
+  .get(pdfController.getMergedExtractedData);
 
 router
-  .route('/:id/extracted-data')
-  .patch(validateExtractedData, pdfController.updatePdfExtractedData)
-  .delete(pdfController.clearPdfExtractedData);
+  .route('/:id/tables')
+  .get(pdfController.getPdfTables)
+  .post(validateTablePayload, pdfController.createPdfTable);
+
+router
+  .route('/tables/:tableId')
+  .patch(validateTablePayload, pdfController.updatePdfTable)
+  .put(validateTablePayload, pdfController.replacePdfTable)
+  .delete(pdfController.deletePdfTable);
+
+router
+  .route('/tables/:tableId/rows')
+  .post(validateRowPayload, pdfController.createPdfTableRow)
+  .delete(pdfController.clearPdfTableRows);
+
+router
+  .route('/tables/:tableId/rows/:rowId')
+  .patch(validateRowPayload, pdfController.updatePdfTableRow)
+  .delete(pdfController.deletePdfTableRow);
+
+router
+  .route('/upload')
+  .post(uploadPdf, validateUploadedPdf, pdfController.uploadPdf);
 
 router
   .route('/:id')

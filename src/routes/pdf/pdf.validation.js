@@ -77,8 +77,50 @@ const validateExtractedData = (req, res, next) => {
   return next();
 };
 
+const validateTablePayload = (req, res, next) => {
+  const body = req.body;
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return next(new ApiError(400, 'Request body is required'));
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'title') && body.title !== null && typeof body.title !== 'string') {
+    return next(new ApiError(400, 'title must be a string or null'));
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'columns') && !Array.isArray(body.columns)) {
+    return next(new ApiError(400, 'columns must be an array'));
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'rows') && !Array.isArray(body.rows)) {
+    return next(new ApiError(400, 'rows must be an array'));
+  }
+
+  return next();
+};
+
+const validateRowPayload = (req, res, next) => {
+  const body = req.body;
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return next(new ApiError(400, 'Request body is required'));
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(body, 'rowData')) {
+    return next(new ApiError(400, 'rowData is required'));
+  }
+
+  if (body.rowData === null || typeof body.rowData !== 'object' || Array.isArray(body.rowData)) {
+    return next(new ApiError(400, 'rowData must be an object'));
+  }
+
+  return next();
+};
+
 module.exports = {
   uploadPdf,
   validateUploadedPdf,
   validateExtractedData,
+  validateTablePayload,
+  validateRowPayload,
 };
