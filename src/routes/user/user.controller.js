@@ -35,8 +35,12 @@ const normalizedUser = (user) => {
   return safeUser;
 };
 
-const buildAuthResponse = async (user) => {
+const buildAuthResponse = async (user, oldToken = null) => {
   const safeUser = normalizedUser(user);
+
+  if (oldToken) {
+    await revokeRefreshToken(oldToken);
+  }
 
   const refreshTokenString = generateRefreshTokenString();
   await createRefreshToken({
@@ -47,7 +51,7 @@ const buildAuthResponse = async (user) => {
 
   return {
     user: safeUser,
-    token : generateAccessToken({ id: safeUser.id, email: safeUser.email, role: safeUser.role }),
+    token: generateAccessToken({ id: safeUser.id, email: safeUser.email, role: safeUser.role }),
   };
 };
 
@@ -119,8 +123,9 @@ const login = async (req, res) => {
     }
 
     if (!user.isActive) {
-      throw new ApiError(403, 'Your account has been deactivated. Please contact support.');
+      throw new ApiError(403, 'Your account is not activated. Please contact your administrator.');
     }
+
 
     const passwordMatches = await comparePassword(password, user.password);
 
@@ -180,7 +185,7 @@ const refresh = async (req, res) => {
     }
 
     await revokeRefreshToken(activeToken.token);
-    const result = await buildAuthResponse(user);
+    const result = await buildAuthResponse(user, activeToken.token);
 
     return res.status(200).json(new ApiResponse(200, 'Token refreshed', result));
   } catch (err) {
