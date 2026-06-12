@@ -5,6 +5,7 @@ module.exports = {
   port: Number(process.env.PORT) || 4000,
   clientUrl: process.env.CLIENT_URL || '',
   databaseUrl: process.env.DATABASE_URL || '',
+  directDatabaseUrl: process.env.DIRECT_DATABASE_URL || '',
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || '',
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1d',
   jwtRefreshExpiresInDays: Number(process.env.JWT_REFRESH_EXPIRES_IN_DAYS) || 30,

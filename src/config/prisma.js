@@ -7,7 +7,7 @@ const config = require('./index');
 const createPrismaClient = () => {
   return new PrismaClient({
     adapter: new PrismaPg({
-      connectionString: config.databaseUrl
+      connectionString: config.directDatabaseUrl
     })
   });
 };
