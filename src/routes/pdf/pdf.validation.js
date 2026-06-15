@@ -120,35 +120,43 @@ const validateRowPayload = (req, res, next) => {
 const validateBulkRowPayload = (req, res, next) => {
   const body = req.body;
 
+  // Support two payload shapes:
+  // 1) Detailed per-row updates: { updates: { rowId: { col: value, ... }, ... } }
+  // 2) Simple same-update for all selected rows: { rowIds: [...], data: { col: value, ... } }
+
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return next(new ApiError(400, 'Request body is required'));
   }
 
-  if (!Array.isArray(body.updates)) {
-    return next(new ApiError(400, 'updates must be an array'));
+  if (Object.prototype.hasOwnProperty.call(body, 'updates')) {
+    const { updates } = body;
+    if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+      return next(new ApiError(400, 'updates must be an object'));
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return next(new ApiError(400, 'updates must include at least one row'));
+    }
+
+    return next();
   }
 
-  if (body.updates.length === 0) {
-    return next(new ApiError(400, 'updates must include at least one row'));
+  // Validate simple payload
+  if (!Array.isArray(body.rowIds) || body.rowIds.length === 0) {
+    return next(new ApiError(400, 'rowIds must be a non-empty array'));
   }
 
-  const invalidUpdate = body.updates.find((update) => {
-    return (
-      !update ||
-      typeof update !== 'object' ||
-      Array.isArray(update) ||
-      !Object.prototype.hasOwnProperty.call(update, 'rowId') ||
-      typeof update.rowId !== 'string' ||
-      update.rowId.trim() === '' ||
-      !Object.prototype.hasOwnProperty.call(update, 'rowData') ||
-      update.rowData === null ||
-      typeof update.rowData !== 'object' ||
-      Array.isArray(update.rowData)
-    );
-  });
+  const invalidRowId = body.rowIds.find((rowId) => typeof rowId !== 'string' || rowId.trim() === '');
+  if (invalidRowId) {
+    return next(new ApiError(400, 'Each rowId must be a non-empty string'));
+  }
 
-  if (invalidUpdate) {
-    return next(new ApiError(400, 'Each update must include rowId and rowData object'));
+  if (!Object.prototype.hasOwnProperty.call(body, 'data') || body.data === null || typeof body.data !== 'object' || Array.isArray(body.data)) {
+    return next(new ApiError(400, 'data must be an object'));
+  }
+
+  if (Object.keys(body.data).length === 0) {
+    return next(new ApiError(400, 'data must include at least one field'));
   }
 
   return next();

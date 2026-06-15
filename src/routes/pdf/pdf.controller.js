@@ -14,7 +14,7 @@ const removeLocalFile = (filePath) => {
 };
 
 const getOwnedTable = async (tableId, userId, next, notFoundMessage = 'Table not found') => {
-  const table = await pdfModel.getOwnedExtractedTableForUser(tableId, userId);
+  const table = await pdfModel.getOwnedExtractedTable(tableId, userId);
 
   if (!table) {
     next(new ApiError(404, notFoundMessage));
@@ -102,7 +102,7 @@ const getMergedExtractedData = async (req, res, next) => {
 
 const getPdfTables = async (req, res, next) => {
   try {
-    const tables = await pdfModel.getExtractedTablesByUserIdForUser(req.user.id);
+    const tables = await pdfModel.getExtractedTablesByUserId(req.user.id);
 
     return res.status(200).json(
       new ApiResponse(
@@ -120,7 +120,7 @@ const createPdfTable = async (req, res, next) => {
   try {
     const { title, columns = [], rows = [] } = req.body;
 
-    const createdTable = await pdfModel.createExtractedTableForUser({
+    const createdTable = await pdfModel.createExtractedTable({
       userId: req.user.id,
       sourceFileName: null,
       contentHash: null,
@@ -146,7 +146,7 @@ const updatePdfTable = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const updatedTable = await pdfModel.updateExtractedTableByIdForUser(req.params.tableId, req.user.id, req.body, table);
+    const updatedTable = await pdfModel.updateExtractedTableById(req.params.tableId, req.body, table);
 
     return res.status(200).json(
       new ApiResponse(
@@ -165,7 +165,7 @@ const replacePdfTable = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const replacedTable = await pdfModel.replaceExtractedTableBulkForUser(req.params.tableId, req.user.id, req.body, table);
+    const replacedTable = await pdfModel.replaceExtractedTableBulk(req.params.tableId, req.body, table);
 
     return res.status(200).json(
       new ApiResponse(
@@ -184,7 +184,7 @@ const deletePdfTable = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const deletedTable = await pdfModel.deleteExtractedTableByIdForUser(req.params.tableId, req.user.id);
+    const deletedTable = await pdfModel.deleteExtractedTableById(req.params.tableId);
 
     return res.status(200).json(
       new ApiResponse(
@@ -203,7 +203,7 @@ const createPdfTableRow = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const createdRow = await pdfModel.createExtractedRowByTableIdForUser(req.params.tableId, req.user.id, req.body.rowData, table);
+    const createdRow = await pdfModel.createExtractedRowByTableId(req.params.tableId, req.body.rowData, table);
 
     return res.status(201).json(
       new ApiResponse(
@@ -222,7 +222,7 @@ const updatePdfTableRow = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const updatedRow = await pdfModel.updateExtractedRowByIdForUser(req.params.tableId, req.user.id, req.params.rowId, req.body.rowData, table);
+    const updatedRow = await pdfModel.updateExtractedRowById(req.params.tableId, req.params.rowId, req.body.rowData, table);
 
     return res.status(200).json(
       new ApiResponse(
@@ -241,7 +241,15 @@ const bulkUpdatePdfTableRows = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const result = await pdfModel.bulkUpdateExtractedRowsForUser(req.params.tableId, req.user.id, req.body.updates, table);
+    // Support two payload shapes:
+    // 1) Detailed per-row updates: { updates: { rowId: { col: value, ... }, ... } }
+    // 2) Simple same-update for all selected rows: { rowIds: [...], data: { col: value, ... } }
+    let result;
+    if (Array.isArray(req.body.rowIds) && req.body.rowIds.length > 0 && req.body.data && typeof req.body.data === 'object') {
+      result = await pdfModel.bulkUpdateExtractedRowsSimple(req.params.tableId, req.body.rowIds, req.body.data, table);
+    } else {
+      result = await pdfModel.bulkUpdateExtractedRows(req.params.tableId, req.body.updates, table);
+    }
 
     return res.status(200).json(
       new ApiResponse(
@@ -260,7 +268,7 @@ const bulkDeletePdfTableRows = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const result = await pdfModel.deleteExtractedRowsByIdsForUser(req.params.tableId, req.user.id, req.body.rowIds, table);
+    const result = await pdfModel.deleteExtractedRowsByIds(req.params.tableId, req.body.rowIds, table);
 
     return res.status(200).json(
       new ApiResponse(
@@ -279,7 +287,7 @@ const deletePdfTableRow = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const deletedRow = await pdfModel.deleteExtractedRowByIdForUser(req.params.tableId, req.user.id, req.params.rowId, table);
+    const deletedRow = await pdfModel.deleteExtractedRowById(req.params.tableId, req.params.rowId, table);
 
     if (!deletedRow) {
       return next(new ApiError(404, 'Row not found'));
@@ -302,7 +310,7 @@ const clearPdfTableRows = async (req, res, next) => {
     const table = await getOwnedTable(req.params.tableId, req.user.id, next);
     if (!table) return;
 
-    const cleared = await pdfModel.clearExtractedRowsByTableIdForUser(req.params.tableId, req.user.id, table);
+    const cleared = await pdfModel.clearExtractedRowsByTableId(req.params.tableId, table);
 
     return res.status(200).json(
       new ApiResponse(
@@ -318,7 +326,7 @@ const clearPdfTableRows = async (req, res, next) => {
 
 const getUserPdfs = async (req, res, next) => {
   try {
-    const tables = await pdfModel.getExtractedTablesByUserIdForUser(req.user.id);
+    const tables = await pdfModel.getExtractedTablesByUserId(req.user.id);
 
     return res.status(200).json(
       new ApiResponse(
@@ -335,7 +343,7 @@ const getUserPdfs = async (req, res, next) => {
 const getPdf = async (req, res, next) => {
   try {
     const tableId = req.params.tableId || req.params.id;
-    const table = await pdfModel.getOwnedExtractedTableForUser(tableId, req.user.id);
+    const table = await pdfModel.getOwnedExtractedTable(tableId, req.user.id);
 
     if (!table) {
       return next(new ApiError(404, 'PDF not found'));
@@ -356,13 +364,13 @@ const getPdf = async (req, res, next) => {
 const deletePdf = async (req, res, next) => {
   try {
     const tableId = req.params.tableId || req.params.id;
-    const table = await pdfModel.getOwnedExtractedTableForUser(tableId, req.user.id);
+    const table = await pdfModel.getOwnedExtractedTable(tableId, req.user.id);
 
     if (!table) {
       return next(new ApiError(404, 'PDF not found'));
     }
 
-    const deletedPdf = await pdfModel.deleteExtractedTableByIdForUser(tableId, req.user.id);
+    const deletedPdf = await pdfModel.deleteExtractedTableById(tableId);
 
     return res.status(200).json(
       new ApiResponse(
