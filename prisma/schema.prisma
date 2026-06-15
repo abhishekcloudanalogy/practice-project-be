@@ -81,6 +81,37 @@ model Contact {
   @@index([createdAt])
 }
 
+model Partner {
+  id            Int              @id @default(autoincrement())
+  externalId    String?
+  partnerName   String           @unique
+  parentPartner String?
+  pmId          String?
+  url           String?
+  email         String?
+  programs      PartnerProgram[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([partnerName])
+}
+
+model PartnerProgram {
+  id                 Int      @id @default(autoincrement())
+  partnerProgramName String
+  description        String?
+  verificationStep   Boolean  @default(false)
+  template           String?
+  loginTemplate      String?
+  loginScript        String?
+  partner            Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  partnerId          Int
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([partnerId])
+}
+
 model UserContact {
   id               String      @id @default(cuid())
   firstName        String
